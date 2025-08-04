@@ -68,9 +68,9 @@
      * Regular expression to check atomic tags.
      * @see function diff.
      */
-    var atomicTagsRegExp;
     // Added head and style (for style tags inside the body)
     var defaultAtomicTagsRegExp = new RegExp('^<(iframe|object|math|svg|script|video|head|style|a)\b');
+    var atomicTagsRegExp = defaultAtomicTagsRegExp;
     
     /**
      * Checks if the current word is the beginning of an atomic tag. An atomic tag is one whose
@@ -282,6 +282,7 @@
      * @return {string} The identifying key that should be used to match before and after tokens.
      */
     function getKeyForToken(token){
+        //console.log('[htmldiff] getKeyForToken:', token);
         // If the token is an image element, grab it's src attribute to include in the key.
         var img = /^<img.*src=['"]([^"']*)['"].*>$/.exec(token);
         if (img) {
@@ -459,6 +460,7 @@
      * @return {Match} The best match.
      */
     function findBestMatch(segment){
+        //console.log('[htmldiff] findBestMatch segment:', segment);
         var beforeTokens = segment.beforeTokens;
         var afterMap = segment.afterMap;
         var lastSpace = null;
@@ -531,6 +533,7 @@
      * @return {Match} The full match.
      */
     function getFullMatch(segment, beforeStart, afterStart, minLength, lookBehind){
+        //console.log('[htmldiff] getFullMatch', {beforeStart, afterStart, minLength, lookBehind});
         var beforeTokens = segment.beforeTokens;
         var afterTokens = segment.afterTokens;
 
@@ -599,6 +602,7 @@
      * @return {Segment} The segment object.
      */
     function createSegment(beforeTokens, afterTokens, beforeIndex, afterIndex){
+        //console.log('[htmldiff] createSegment', {beforeTokens: beforeTokens.map(t=>t.string), afterTokens: afterTokens.map(t=>t.string), beforeIndex, afterIndex});
         return {
             beforeTokens: beforeTokens,
             afterTokens: afterTokens,
@@ -618,6 +622,7 @@
      * @return {Array.<Match>} The list of matching blocks in this range.
      */
     function findMatchingBlocks(segment){
+        //console.log('[htmldiff] findMatchingBlocks', segment);
         // Create a binary search tree to hold the matches we find in order.
         var matches = new MatchBinarySearchTree();
         var match;
@@ -726,9 +731,46 @@
             positionInAfter = match.endInAfter + 1;
         }
 
+        // Post-process: merge insert+equal+insert (tag wrap) into a replace if possible
         var postProcessed = [];
-        var lastOp = {action: 'none'};
+        var i = 0;
+        while (i < operations.length) {
+            // Look for insert, equal, insert pattern
+            if (
+                i + 2 < operations.length &&
+                operations[i].action === 'insert' &&
+                operations[i+1].action === 'equal' &&
+                operations[i+2].action === 'insert'
+            ) {
+                var insOpen = afterTokens[operations[i].startInAfter];
+                var insClose = afterTokens[operations[i+2].startInAfter];
+                var equalBefore = beforeTokens.slice(operations[i+1].startInBefore, operations[i+1].endInBefore+1).map(t=>t.string).join('');
+                var equalAfter = afterTokens.slice(operations[i+1].startInAfter, operations[i+1].endInAfter+1).map(t=>t.string).join('');
+                // Check if the inserts are open/close tags and the equal region is the same text
+                if (
+                    /^<[^>]+>$/.test(insOpen.string) &&
+                    /^<\/.+>$/.test(insClose.string) &&
+                    equalBefore === equalAfter
+                ) {
+                    // Merge into a replace
+                    postProcessed.push({
+                        action: 'replace',
+                        startInBefore: operations[i+1].startInBefore,
+                        endInBefore: operations[i+1].endInBefore,
+                        startInAfter: operations[i].startInAfter,
+                        endInAfter: operations[i+2].endInAfter
+                    });
+                    i += 3;
+                    continue;
+                }
+            }
+            postProcessed.push(operations[i]);
+            i++;
+        }
 
+        // Merge consecutive replaces and handle whitespace as before
+        var finalOps = [];
+        var lastOp = {action: 'none'};
         function isSingleWhitespace(op){
             if (op.action !== 'equal'){
                 return false;
@@ -738,20 +780,18 @@
             }
             return /^\s$/.test(beforeTokens.slice(op.startInBefore, op.endInBefore + 1));
         }
-
-        for (var i = 0; i < operations.length; i++){
-            var op = operations[i];
-
+        for (var j = 0; j < postProcessed.length; j++){
+            var op = postProcessed[j];
             if ((isSingleWhitespace(op) && lastOp.action === 'replace') ||
                     (op.action === 'replace' && lastOp.action === 'replace')){
                 lastOp.endInBefore = op.endInBefore;
                 lastOp.endInAfter = op.endInAfter;
             } else {
-                postProcessed.push(op);
+                finalOps.push(op);
                 lastOp = op;
             }
         }
-        return postProcessed;
+        return finalOps;
     }
 
     /**
@@ -888,31 +928,110 @@
      *
      * @return {string} The rendering of that operation.
      */
-    var OPS = {
-        'equal': function(op, beforeTokens, afterTokens, opIndex, dataPrefix, className){
-            var tokens = afterTokens.slice(op.startInAfter, op.endInAfter + 1);
-            return tokens.reduce(function(prev, curr){
-                return prev + curr.string;
-            }, '');
-        },
-        'insert': function(op, beforeTokens, afterTokens, opIndex, dataPrefix, className){
-            var tokens = afterTokens.slice(op.startInAfter, op.endInAfter + 1);
-            var val = tokens.map(function(token){
-                return token.string;
-            });
-            return wrap('ins', val, opIndex, dataPrefix, className);
-        },
-        'delete': function(op, beforeTokens, afterTokens, opIndex, dataPrefix, className){
-            var tokens = beforeTokens.slice(op.startInBefore, op.endInBefore + 1);
-            var val = tokens.map(function(token){
-                return token.string;
-            });
-            return wrap('del', val, opIndex, dataPrefix, className);
-        },
-        'replace': function(){
-            return OPS['delete'].apply(null, arguments) + OPS['insert'].apply(null, arguments);
+function tokensAreAllText(tokens) {
+    return tokens.every(function(token) {
+        return !/^\s*<.*?>\s*$/.test(token.string);
+    });
+}
+
+function groupTokensByWord(tokens) {
+    // Group tokens into words (join consecutive non-whitespace tokens)
+    var result = [];
+    var buffer = '';
+    tokens.forEach(function(token) {
+        if (/^\s+$/.test(token.string)) {
+            if (buffer) {
+                result.push(buffer);
+                buffer = '';
+            }
+            result.push(token.string);
+        } else {
+            buffer += token.string;
         }
-    };
+    });
+    if (buffer) result.push(buffer);
+    return result;
+}
+
+var OPS = {
+    'equal': function(op, beforeTokens, afterTokens, opIndex, dataPrefix, className){
+        var tokens = afterTokens.slice(op.startInAfter, op.endInAfter + 1);
+        return tokens.reduce(function(prev, curr){
+            return prev + curr.string;
+        }, '');
+    },
+    'insert': function(op, beforeTokens, afterTokens, opIndex, dataPrefix, className){
+        var tokens = afterTokens.slice(op.startInAfter, op.endInAfter + 1);
+        // If all tokens are text, group by word
+        if (tokens.length > 1 && tokensAreAllText(tokens)) {
+            var words = groupTokensByWord(tokens).filter(Boolean);
+            return words.map(function(word) {
+                if (/^\s+$/.test(word)) return word;
+                return wrap('ins', [word], opIndex, dataPrefix, className);
+            }).join('');
+        }
+        var val = tokens.map(function(token){
+            return token.string;
+        });
+        return wrap('ins', val, opIndex, dataPrefix, className);
+    },
+    'delete': function(op, beforeTokens, afterTokens, opIndex, dataPrefix, className){
+        var tokens = beforeTokens.slice(op.startInBefore, op.endInBefore + 1);
+        // If all tokens are text, group by word
+        if (tokens.length > 1 && tokensAreAllText(tokens)) {
+            var words = groupTokensByWord(tokens).filter(Boolean);
+            return words.map(function(word) {
+                if (/^\s+$/.test(word)) return word;
+                return wrap('del', [word], opIndex, dataPrefix, className);
+            }).join('');
+        }
+        var val = tokens.map(function(token){
+            return token.string;
+        });
+        return wrap('del', val, opIndex, dataPrefix, className);
+    },
+    'replace': function(op, beforeTokens, afterTokens, opIndex, dataPrefix, className){
+        var before = beforeTokens.slice(op.startInBefore, op.endInBefore + 1);
+        var after = afterTokens.slice(op.startInAfter, op.endInAfter + 1);
+        // Special case: plain text replaced by a tag with same text (or vice versa), tag may have attributes
+        // Handle: before is all text tokens, after is open tag, text tokens, close tag
+        if (before.length >= 1 && after.length >= 3) {
+            var afterOpen = after[0].string;
+            var afterClose = after[after.length-1].string;
+            var afterText = after.slice(1, after.length-1).filter(t => !/^<.*?>$/.test(t.string)).map(t => t.string).join('');
+            var beforeText = before.filter(t => !/^<.*?>$/.test(t.string)).map(t => t.string).join('');
+            if (/^<[^>]+>$/.test(afterOpen) && /^<\/.+>$/.test(afterClose) && beforeText === afterText) {
+                return wrap('del', [before.map(t=>t.string).join('')], opIndex, dataPrefix, className) + wrap('ins', [after.map(t=>t.string).join('')], opIndex, dataPrefix, className);
+            }
+        }
+        if (before.length >= 3 && after.length >= 1) {
+            var beforeOpen2 = before[0].string;
+            var beforeClose2 = before[before.length-1].string;
+            var beforeText2 = before.slice(1, before.length-1).filter(t => !/^<.*?>$/.test(t.string)).map(t => t.string).join('');
+            var afterText2 = after.filter(t => !/^<.*?>$/.test(t.string)).map(t => t.string).join('');
+            if (/^<[^>]+>$/.test(beforeOpen2) && /^<\/.+>$/.test(beforeClose2) && beforeText2 === afterText2) {
+                return wrap('del', [before.map(t=>t.string).join('')], opIndex, dataPrefix, className) + wrap('ins', [after.map(t=>t.string).join('')], opIndex, dataPrefix, className);
+            }
+        }
+        // If both are text, use word-level diff
+        if (before.length > 1 && after.length > 1 && tokensAreAllText(before) && tokensAreAllText(after)) {
+            var beforeWords = groupTokensByWord(before).filter(Boolean);
+            var afterWords = groupTokensByWord(after).filter(Boolean);
+            // Simple word-level replace: wrap all before words in del, all after in ins
+            return beforeWords.map(function(word) {
+                if (/^\s+$/.test(word)) return word;
+                return wrap('del', [word], opIndex, dataPrefix, className);
+            }).join('') +
+            afterWords.map(function(word) {
+                if (/^\s+$/.test(word)) return word;
+                return wrap('ins', [word], opIndex, dataPrefix, className);
+            }).join('');
+        }
+        // Otherwise, fallback to char-level
+        return OPS['delete'](op, beforeTokens, afterTokens, opIndex, dataPrefix, className) +
+               OPS['insert'](op, beforeTokens, afterTokens, opIndex, dataPrefix, className);
+    }
+};
 
     /**
      * Renders a list of operations into HTML content. The result is the combined version
@@ -934,10 +1053,12 @@
      * @return {string} The rendering of the list of operations.
      */
     function renderOperations(beforeTokens, afterTokens, operations, dataPrefix, className){
-        return operations.reduce(function(rendering, op, index){
-            return rendering + OPS[op.action](
-                    op, beforeTokens, afterTokens, index, dataPrefix, className);
+        var result = operations.reduce(function(rendering, op, index){
+            var rendered = OPS[op.action](
+                op, beforeTokens, afterTokens, index, dataPrefix, className);
+            return rendering + rendered;
         }, '');
+        return result;
     }
 
     /**
@@ -966,7 +1087,8 @@
         before = htmlToTokens(before);
         after = htmlToTokens(after);
         var ops = calculateOperations(before, after);
-        return renderOperations(before, after, ops, dataPrefix, className);
+        var rendered = renderOperations(before, after, ops, dataPrefix, className);
+        return rendered;
     }
 
     diff.htmlToTokens = htmlToTokens;
