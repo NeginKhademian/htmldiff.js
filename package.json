@@ -1,5 +1,5 @@
 {
-    "name": "node-htmldiff",
+    "name": "node-htmldiff-word-based",
     "description": "Diff and markup HTML with <ins> and <del> tags",
     "companyname": "idesis GmbH",
     "copyright": "©2022, idesis GmbH; ©2012 The Network Inc. and contributors",
