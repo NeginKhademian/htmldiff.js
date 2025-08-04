@@ -3,7 +3,7 @@
     "description": "Diff and markup HTML with <ins> and <del> tags",
     "companyname": "idesis GmbH",
     "copyright": "©2022, idesis GmbH; ©2012 The Network Inc. and contributors",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "identifier": "de.idesis.node-htmldiff",
     "keywords": [
         "diff",
@@ -12,7 +12,7 @@
         "ins",
         "del"
     ],
-    "homepage": "https://github.com/idesis-gmbh/htmldiff.js",
+    "homepage": "https://github.com/NeginKhademian/htmldiff.js",
     "author": {
         "name": "Michael Nitze",
         "email": "michael.nitze@idesis.de",
@@ -25,12 +25,11 @@
     ],
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/idesis-gmbh/htmldiff.js.git"
+        "url": "git+https://github.com/NeginKhademian/htmldiff.js.git"
     },
     "readme": "README.md",
     "bugs": {
-        "url": "https://github.com/idesis-gmbh/htmldiff.js/issues",
-        "email": "produktion@idesis.de"
+        "url": "https://github.com/NeginKhademian/htmldiff.js/issues"
     },
     "private": false,
     "license": "MIT",
@@ -47,6 +46,7 @@
     ],
     "types": "js/htmldiff.d.ts",
     "dependencies": {
+        "htmlparser2": "^10.0.0"
     },
     "devDependencies": {
         "@types/node": "18.7.11",
