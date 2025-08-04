@@ -170,29 +170,78 @@
      *
      * @return {Array.<string>} The list of tokens.
      */
-   function htmlToTokens(html) {
-    const tokens = [];
-    let regex = /(<[^>]+>)|(\s+)|([.,:;!?])|(&\w+;)|([^\s<>&.,:;!?]+)/g;
-    let match;
-
-    while ((match = regex.exec(html)) !== null) {
-        const [token, tag, space, punct, entity, word] = match;
-
-        if (tag) {
-            tokens.push(createToken(tag));
-        } else if (space) {
-            tokens.push(createToken(' ')); // Normalize all whitespace to a single space
-        } else if (punct) {
-            tokens.push(createToken(punct));
-        } else if (entity) {
-            tokens.push(createToken(entity));
-        } else if (word) {
-            tokens.push(createToken(word));
+    function htmlToTokens(html){
+        var mode = 'char';
+        var currentWord = '';
+        var currentAtomicTag = '';
+        var words = [];
+        for (var i = 0; i < html.length; i++){
+            var char = html[i];
+            switch (mode){
+                case 'tag':
+                    var atomicTag = isStartOfAtomicTag(currentWord);
+                    if (atomicTag){
+                        mode = 'atomic_tag';
+                        currentAtomicTag = atomicTag;
+                        currentWord += char;
+                    } else if (isStartofHTMLComment(currentWord)){
+                        mode = 'html_comment';
+                        currentWord += char;
+                    } else if (isEndOfTag(char)){
+                        currentWord += '>';
+                        words.push(createToken(currentWord));
+                        currentWord = '';
+                        mode = 'char';
+                    } else {
+                        currentWord += char;
+                    }
+                    break;
+                case 'atomic_tag':
+                    if (isEndOfTag(char) && isEndOfAtomicTag(currentWord, currentAtomicTag)){
+                        currentWord += '>';
+                        words.push(createToken(currentWord));
+                        currentWord = '';
+                        currentAtomicTag = '';
+                        mode = 'char';
+                    } else {
+                        currentWord += char;
+                    }
+                    break;
+                case 'html_comment':
+                    currentWord += char;
+                    if (isEndOfHTMLComment(currentWord)){
+                        currentWord = '';
+                        mode = 'char';
+                    }
+                    break;
+                case 'char':
+                    if (isStartOfTag(char)){
+                        if (currentWord){
+                            // Split text node into words
+                            var wordTokens = currentWord.match(/[^\s]+|\s+/g);
+                            if (wordTokens) {
+                                wordTokens.forEach(function(w){ words.push(createToken(w)); });
+                            }
+                        }
+                        currentWord = '<';
+                        mode = 'tag';
+                    } else {
+                        currentWord += char;
+                    }
+                    break;
+                default:
+                    throw new Error('Unknown mode ' + mode);
+            }
         }
+        if (currentWord){
+            // Split text node into words
+            var wordTokens = currentWord.match(/[^\s]+|\s+/g);
+            if (wordTokens) {
+                wordTokens.forEach(function(w){ words.push(createToken(w)); });
+            }
+        }
+        return words;
     }
-
-    return tokens;
-}
 
     /**
      * Creates a key that should be used to match tokens. This is useful, for example, if we want
@@ -811,6 +860,7 @@
      *
      * @return {string} The rendering of that operation.
      */
+    // Enhanced OPS to handle tag change with same text
     var OPS = {
         'equal': function(op, beforeTokens, afterTokens, opIndex, dataPrefix, className){
             var tokens = afterTokens.slice(op.startInAfter, op.endInAfter + 1);
@@ -832,8 +882,27 @@
             });
             return wrap('del', val, opIndex, dataPrefix, className);
         },
-        'replace': function(){
-            return OPS['delete'].apply(null, arguments) + OPS['insert'].apply(null, arguments);
+        'replace': function(op, beforeTokens, afterTokens, opIndex, dataPrefix, className){
+            // Check for tag change with same text
+            var before = beforeTokens.slice(op.startInBefore, op.endInBefore + 1);
+            var after = afterTokens.slice(op.startInAfter, op.endInAfter + 1);
+            if (before.length === after.length && before.length >= 3) {
+                // Check if both are tag, text, end tag
+                var beforeOpen = isTag(before[0].string) && !/^\//.test(isTag(before[0].string));
+                var afterOpen = isTag(after[0].string) && !/^\//.test(isTag(after[0].string));
+                var beforeClose = isTag(before[before.length-1].string) && /^\//.test(isTag(before[before.length-1].string));
+                var afterClose = isTag(after[after.length-1].string) && /^\//.test(isTag(after[after.length-1].string));
+                var beforeText = before.slice(1, -1).map(t => t.string).join('');
+                var afterText = after.slice(1, -1).map(t => t.string).join('');
+                if (beforeOpen && afterOpen && beforeClose && afterClose && beforeText === afterText) {
+                    // Tag changed, text same
+                    return wrap('del', before.map(t=>t.string), opIndex, dataPrefix, className) +
+                           wrap('ins', after.map(t=>t.string), opIndex, dataPrefix, className);
+                }
+            }
+            // Fallback to default behavior
+            return OPS['delete'](op, beforeTokens, afterTokens, opIndex, dataPrefix, className) +
+                   OPS['insert'](op, beforeTokens, afterTokens, opIndex, dataPrefix, className);
         }
     };
 
