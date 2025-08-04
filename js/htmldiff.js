@@ -170,33 +170,12 @@
      *
      * @return {Array.<string>} The list of tokens.
      */
-function htmlToTokens(html){
-    // Enhanced: group <tag>text</tag> as a single token if possible
-    var tokens = [];
-    var i = 0;
-    while (i < html.length) {
-        // Try to match <tag>text</tag> pattern
-        var tagMatch = html.slice(i).match(/^<([a-zA-Z0-9]+)([^>]*)>([^<]*)<\/\1>/);
-        if (tagMatch) {
-            var full = tagMatch[0];
-            tokens.push(createToken(full));
-            i += full.length;
-            continue;
-        }
-        // Try to match inline word with any tag, e.g. wo<strong>rd</strong>, wo<i>rd</i>, wo<span>rd</span>
-        var inlineWordMatch = html.slice(i).match(/^([a-zA-Z0-9]+)<([a-zA-Z][a-zA-Z0-9]*)([^>]*)>([\s\S]*?)<\/\2>/);
-        if (inlineWordMatch) {
-            var full = inlineWordMatch[0];
-            tokens.push(createToken(full));
-            i += full.length;
-            continue;
-        }
-        // Otherwise, fall back to original char/word/tag logic
+    function htmlToTokens(html){
         var mode = 'char';
         var currentWord = '';
         var currentAtomicTag = '';
         var words = [];
-        for (; i < html.length; i++){
+        for (var i = 0; i < html.length; i++){
             var char = html[i];
             switch (mode){
                 case 'tag':
@@ -212,7 +191,11 @@ function htmlToTokens(html){
                         currentWord += '>';
                         words.push(createToken(currentWord));
                         currentWord = '';
-                        mode = 'char';
+                        if (isWhitespace(char)){
+                            mode = 'whitespace';
+                        } else {
+                            mode = 'char';
+                        }
                     } else {
                         currentWord += char;
                     }
@@ -238,38 +221,55 @@ function htmlToTokens(html){
                 case 'char':
                     if (isStartOfTag(char)){
                         if (currentWord){
-                            // Split text node into words
-                            var wordTokens = currentWord.match(/[^\s]+|\s+/g);
-                            if (wordTokens) {
-                                wordTokens.forEach(function(w){ words.push(createToken(w)); });
-                            }
+                            words.push(createToken(currentWord));
                         }
                         currentWord = '<';
                         mode = 'tag';
+                    } else if (/\s/.test(char)){
+                        if (currentWord){
+                            words.push(createToken(currentWord));
+                        }
+                        currentWord = char;
+                        mode = 'whitespace';
+                    } else if (/[\w\d\#@]/.test(char)){
+                        currentWord += char;
+                    } else if (/&/.test(char)){
+                        if (currentWord){
+                            words.push(createToken(currentWord));
+                        }
+                        currentWord = char;
                     } else {
                         currentWord += char;
+                        words.push(createToken(currentWord));
+                        currentWord = '';
+                    }
+                    break;
+                case 'whitespace':
+                    if (isStartOfTag(char)){
+                        if (currentWord){
+                            words.push(createToken(currentWord));
+                        }
+                        currentWord = '<';
+                        mode = 'tag';
+                    } else if (isWhitespace(char)){
+                        currentWord += char;
+                    } else {
+                        if (currentWord){
+                            words.push(createToken(currentWord));
+                        }
+                        currentWord = char;
+                        mode = 'char';
                     }
                     break;
                 default:
                     throw new Error('Unknown mode ' + mode);
             }
-            // If we just finished a tag, break to outer loop to check for <tag>text</tag> or inline word again
-            if (mode === 'char' && currentWord === '') {
-                i++;
-                break;
-            }
         }
         if (currentWord){
-            // Split text node into words
-            var wordTokens = currentWord.match(/[^\s]+|\s+/g);
-            if (wordTokens) {
-                wordTokens.forEach(function(w){ words.push(createToken(w)); });
-            }
+            words.push(createToken(currentWord));
         }
-        tokens = tokens.concat(words);
+        return words;
     }
-    return tokens;
-}
 
     /**
      * Creates a key that should be used to match tokens. This is useful, for example, if we want
@@ -888,7 +888,6 @@ function htmlToTokens(html){
      *
      * @return {string} The rendering of that operation.
      */
-    // Enhanced OPS to handle tag change with same text
     var OPS = {
         'equal': function(op, beforeTokens, afterTokens, opIndex, dataPrefix, className){
             var tokens = afterTokens.slice(op.startInAfter, op.endInAfter + 1);
@@ -910,27 +909,8 @@ function htmlToTokens(html){
             });
             return wrap('del', val, opIndex, dataPrefix, className);
         },
-        'replace': function(op, beforeTokens, afterTokens, opIndex, dataPrefix, className){
-            // Check for tag change with same text
-            var before = beforeTokens.slice(op.startInBefore, op.endInBefore + 1);
-            var after = afterTokens.slice(op.startInAfter, op.endInAfter + 1);
-            if (before.length === after.length && before.length >= 3) {
-                // Check if both are tag, text, end tag
-                var beforeOpen = isTag(before[0].string) && !/^\//.test(isTag(before[0].string));
-                var afterOpen = isTag(after[0].string) && !/^\//.test(isTag(after[0].string));
-                var beforeClose = isTag(before[before.length-1].string) && /^\//.test(isTag(before[before.length-1].string));
-                var afterClose = isTag(after[after.length-1].string) && /^\//.test(isTag(after[after.length-1].string));
-                var beforeText = before.slice(1, -1).map(t => t.string).join('');
-                var afterText = after.slice(1, -1).map(t => t.string).join('');
-                if (beforeOpen && afterOpen && beforeClose && afterClose && beforeText === afterText) {
-                    // Tag changed, text same
-                    return wrap('del', before.map(t=>t.string), opIndex, dataPrefix, className) +
-                           wrap('ins', after.map(t=>t.string), opIndex, dataPrefix, className);
-                }
-            }
-            // Fallback to default behavior
-            return OPS['delete'](op, beforeTokens, afterTokens, opIndex, dataPrefix, className) +
-                   OPS['insert'](op, beforeTokens, afterTokens, opIndex, dataPrefix, className);
+        'replace': function(){
+            return OPS['delete'].apply(null, arguments) + OPS['insert'].apply(null, arguments);
         }
     };
 
