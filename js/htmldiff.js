@@ -170,12 +170,33 @@
      *
      * @return {Array.<string>} The list of tokens.
      */
-    function htmlToTokens(html){
+function htmlToTokens(html){
+    // Enhanced: group <tag>text</tag> as a single token if possible
+    var tokens = [];
+    var i = 0;
+    while (i < html.length) {
+        // Try to match <tag>text</tag> pattern
+        var tagMatch = html.slice(i).match(/^<([a-zA-Z0-9]+)([^>]*)>([^<]*)<\/\1>/);
+        if (tagMatch) {
+            var full = tagMatch[0];
+            tokens.push(createToken(full));
+            i += full.length;
+            continue;
+        }
+        // Try to match inline word with any tag, e.g. wo<strong>rd</strong>, wo<i>rd</i>, wo<span>rd</span>
+        var inlineWordMatch = html.slice(i).match(/^([a-zA-Z0-9]+)<([a-zA-Z][a-zA-Z0-9]*)([^>]*)>([\s\S]*?)<\/\2>/);
+        if (inlineWordMatch) {
+            var full = inlineWordMatch[0];
+            tokens.push(createToken(full));
+            i += full.length;
+            continue;
+        }
+        // Otherwise, fall back to original char/word/tag logic
         var mode = 'char';
         var currentWord = '';
         var currentAtomicTag = '';
         var words = [];
-        for (var i = 0; i < html.length; i++){
+        for (; i < html.length; i++){
             var char = html[i];
             switch (mode){
                 case 'tag':
@@ -232,6 +253,11 @@
                 default:
                     throw new Error('Unknown mode ' + mode);
             }
+            // If we just finished a tag, break to outer loop to check for <tag>text</tag> or inline word again
+            if (mode === 'char' && currentWord === '') {
+                i++;
+                break;
+            }
         }
         if (currentWord){
             // Split text node into words
@@ -240,8 +266,10 @@
                 wordTokens.forEach(function(w){ words.push(createToken(w)); });
             }
         }
-        return words;
+        tokens = tokens.concat(words);
     }
+    return tokens;
+}
 
     /**
      * Creates a key that should be used to match tokens. This is useful, for example, if we want
