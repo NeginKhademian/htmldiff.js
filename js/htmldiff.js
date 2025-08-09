@@ -283,29 +283,29 @@ function isWrappable(token){
      *
      * @return {string} The identifying key that should be used to match before and after tokens.
      */
-  function getKeyForToken(token) {
-    // 1 — Normalize Persian ZWNJ
-    token = token
-        .replace(/&zwnj;/g, '\u200C')  // entity → literal
-        .replace(/\u200C/g, '&zwnj;'); // literal → entity form
+    
+  function normalizeZWNJ(str) {
+    // Convert both forms to the literal Unicode character
+    return str
+        .replace(/&zwnj;/gi, '\u200C')  // entity → literal
+        .replace(/\u200C/g, '\u200C');  // keep literal as-is
+}
+
+function getKeyForToken(token) {
+    // --- ZWNJ normalization ---
+    token = normalizeZWNJ(token);
 
     // Image keys
     var img = /^<img[^>]*src=['"]([^"']*)['"][^>]*>$/i.exec(token);
-    if (img) {
-        return '<img src="' + img[1] + '">';
-    }
+    if (img) return '<img src="' + img[1] + '">';
 
     // Anchor keys
     var a = /^<a[^>]*href=['"]([^"']*)['"][^>]*>/i.exec(token);
-    if (a) {
-        return '<a href="' + a[1] + '"></a>';
-    }
+    if (a) return '<a href="' + a[1] + '"></a>';
 
     // Object keys
     var object = /^<object[^>]*data=['"]([^"']*)['"][^>]*>/i.exec(token);
-    if (object) {
-        return '<object src="' + object[1] + '"></object>';
-    }
+    if (object) return '<object src="' + object[1] + '"></object>';
 
     // Media keys
     if (/^<(svg|math|video)[\s>]/i.test(token)) {
@@ -314,29 +314,27 @@ function isWrappable(token){
             var start = token.slice(0, uuid);
             var end = token.slice(uuid + 44);
             return start + end;
-        } else {
-            return token.trim();
         }
+        return token.trim();
     }
 
     // Iframe keys
     var iframe = /^<iframe[^>]*src=['"]([^"']*)['"][^>]*>/i.exec(token);
-    if (iframe) {
-        return '<iframe src="' + iframe[1] + '"></iframe>';
-    }
+    if (iframe) return '<iframe src="' + iframe[1] + '"></iframe>';
 
-    // 2 — For all other HTML tags: keep the full tag with attributes
+    // Other tags: keep full tag
     if (/^<[^>]+>$/.test(token.trim())) {
         return token.trim();
     }
 
-    // Text node → normalize spaces
+    // Text node: normalize spaces (preserve ZWNJ)
     if (token) {
         return token.replace(/(\s+|&nbsp;|&#160;)/g, ' ');
     }
 
     return token;
 }
+
 
     /**
      * Creates a map from token key to an array of indices of locations of the matching token in
