@@ -119,10 +119,12 @@
      *
      * @return {boolean} True if the token can be wrapped inside a tag, false otherwise.
      */
-    function isWrappable(token){
-        var is_img = /^<img[\s>]/.test(token);
-        return is_img|| isntTag(token) || isStartOfAtomicTag(token) || isVoidTag(token);
-    }
+function isWrappable(token){
+    var is_img = /^<img[\s>]/i.test(token);
+    // We now allow *any* HTML tag to be wrapped so tag changes are visible
+    return is_img || isTag(token) || isntTag(token) || isStartOfAtomicTag(token) || isVoidTag(token);
+}
+
 
     /**
      * Creates a token that holds a string and key representation. The key is used for diffing
@@ -281,60 +283,58 @@
      *
      * @return {string} The identifying key that should be used to match before and after tokens.
      */
-    function getKeyForToken(token){
+  function getKeyForToken(token) {
     // 1 — Normalize Persian ZWNJ
     token = token
         .replace(/&zwnj;/g, '\u200C')  // entity → literal
         .replace(/\u200C/g, '&zwnj;'); // literal → entity form
-    
+
     // Image keys
-    var img = /^<img.*src=['"]([^"']*)['"].*>$/.exec(token);
+    var img = /^<img[^>]*src=['"]([^"']*)['"][^>]*>$/i.exec(token);
     if (img) {
         return '<img src="' + img[1] + '">';
     }
-    
+
     // Anchor keys
-    var a = /^<a.*href=['"]([^"']*)['"]/.exec(token);
+    var a = /^<a[^>]*href=['"]([^"']*)['"][^>]*>/i.exec(token);
     if (a) {
         return '<a href="' + a[1] + '"></a>';
     }
 
     // Object keys
-    var object = /^<object.*data=['"]([^"']*)['"]/.exec(token);
+    var object = /^<object[^>]*data=['"]([^"']*)['"][^>]*>/i.exec(token);
     if (object) {
         return '<object src="' + object[1] + '"></object>';
     }
 
     // Media keys
-    if(/^<(svg|math|video)[\s>]/.test(token)) {
+    if (/^<(svg|math|video)[\s>]/i.test(token)) {
         var uuid = token.indexOf('data-uuid="');
         if (uuid !== -1) {
             var start = token.slice(0, uuid);
             var end = token.slice(uuid + 44);
             return start + end;
         } else {
-            return token;
-        } 
+            return token.trim();
+        }
     }
 
     // Iframe keys
-    var iframe = /^<iframe.*src=['"]([^"']*)['"].*>/.exec(token);
+    var iframe = /^<iframe[^>]*src=['"]([^"']*)['"][^>]*>/i.exec(token);
     if (iframe) {
         return '<iframe src="' + iframe[1] + '"></iframe>';
     }
 
-    // 2 — Generic HTML tags (OPEN & CLOSE) should keep name
-    var tagNameMatch = /^<\/?([^\s>]+)[\s>]/.exec(token);
-    if (tagNameMatch){
-        var name = tagNameMatch[1].toLowerCase();
-        var isClosing = token.trim().startsWith('</');
-        return (isClosing ? '</' : '<') + name + '>';
+    // 2 — For all other HTML tags: keep the full tag with attributes
+    if (/^<[^>]+>$/.test(token.trim())) {
+        return token.trim();
     }
 
     // Text node → normalize spaces
     if (token) {
         return token.replace(/(\s+|&nbsp;|&#160;)/g, ' ');
     }
+
     return token;
 }
 
