@@ -1271,23 +1271,32 @@
         this.htmldiff = diff;
     }
 }).call(this);
-    function getKeyForToken(token) {
-    var img = /^<img.*src=['"]([^"']*)['"].*>$/i.exec(token);
+function getKeyForToken(token){
+    // 1 — Normalize Persian ZWNJ
+    token = token
+        .replace(/&zwnj;/g, '\u200C')  // entity → literal
+        .replace(/\u200C/g, '&zwnj;'); // literal → entity form
+    
+    // Image keys
+    var img = /^<img.*src=['"]([^"']*)['"].*>$/.exec(token);
     if (img) {
         return '<img src="' + img[1] + '">';
     }
-
-    var a = /^<a.*href=['"]([^"']*)['"]/i.exec(token);
+    
+    // Anchor keys
+    var a = /^<a.*href=['"]([^"']*)['"]/.exec(token);
     if (a) {
         return '<a href="' + a[1] + '"></a>';
     }
 
-    var object = /^<object.*data=['"]([^"']*)['"]/i.exec(token);
+    // Object keys
+    var object = /^<object.*data=['"]([^"']*)['"]/.exec(token);
     if (object) {
         return '<object src="' + object[1] + '"></object>';
     }
 
-    if(/^<(svg|math|video)[\s>]/i.test(token)) {
+    // Media keys
+    if(/^<(svg|math|video)[\s>]/.test(token)) {
         var uuid = token.indexOf('data-uuid="');
         if (uuid !== -1) {
             var start = token.slice(0, uuid);
@@ -1295,32 +1304,34 @@
             return start + end;
         } else {
             return token;
-        }
+        } 
     }
 
-    var iframe = /^<iframe.*src=['"]([^"']*)['"].*>/i.exec(token);
+    // Iframe keys
+    var iframe = /^<iframe.*src=['"]([^"']*)['"].*>/.exec(token);
     if (iframe) {
         return '<iframe src="' + iframe[1] + '"></iframe>';
     }
 
-
-    if (isTag(token)) {
-        return token
-            .replace(/\s+/g, ' ')   // فاصله‌های اضافی
-            .replace(/>$/, '>')     // پاک‌سازی فاصله قبل از >
-            .trim()
-            .toLowerCase();         // حساسیت به حروف از بین می‌رود
+    // 2 — Generic HTML tags (OPEN & CLOSE) should keep name
+    var tagNameMatch = /^<\/?([^\s>]+)[\s>]/.exec(token);
+    if (tagNameMatch){
+        var name = tagNameMatch[1].toLowerCase();
+        var isClosing = token.trim().startsWith('</');
+        return (isClosing ? '</' : '<') + name + '>';
     }
 
-    // اگر متن است، فاصله‌ها را یکسان کنیم (Whitespace normalization)
-if (token) {
-    return token
-        // جایگزینی همه انواع فاصله (شامل نیم‌فاصله فارسی و اسپیس بدون شکستن خط)
-        .replace(/(\u200C|\u200B|\u00A0|\u202F)/g, ' ') // نیم‌فاصله و فاصله‌های خاص → فاصله عادی
-        .replace(/(\s+|&nbsp;|&#160;)/g, ' ')           // فاصله‌های پشت سر هم و HTML space
-        .trim();
-}
+    // Text node → normalize spaces
+    if (token) {
+        return token.replace(/(\s+|&nbsp;|&#160;)/g, ' ');
+    }
     return token;
+}
+function normalizePersianZWNJ(str) {
+  // Make &zwnj; consistent everywhere
+  return str
+    .replace(/&zwnj;/g, '\u200C') // entity → literal
+    .replace(/\u200C/g, '&zwnj;'); // then literal → unified form
 }
     /**
      * Creates a map from token key to an array of indices of locations of the matching token in
