@@ -119,12 +119,11 @@
      *
      * @return {boolean} True if the token can be wrapped inside a tag, false otherwise.
      */
-function isWrappable(token){
-    var is_img = /^<img[\s>]/i.test(token);
-    // We now allow *any* HTML tag to be wrapped so tag changes are visible
-    return is_img || isTag(token) || isntTag(token) || isStartOfAtomicTag(token) || isVoidTag(token);
-}
-
+    function isWrappable(token){
+        var is_img = /^<img[\s>]/i.test(token);
+        // allow any tag to be wrappable so tag changes can be wrapped
+        return is_img || isTag(token) || isntTag(token) || isStartOfAtomicTag(token) || isVoidTag(token);
+    }
 
     /**
      * Creates a token that holds a string and key representation. The key is used for diffing
@@ -755,6 +754,52 @@ function getKeyForToken(token) {
                 lastOp = op;
             }
         }
+
+        // -------------------------
+        // MOVE DETECTION (new)
+        // -------------------------
+        // Convert exact matching delete+insert pairs into 'move' ops (annotated with moveId).
+        // This marks content that was removed from one place and inserted elsewhere as "moved".
+        (function detectMoves(){
+            var insertMap = Object.create(null);
+            var k, list;
+
+            // Build map of insert op keys -> op indices
+            for (var idx = 0; idx < postProcessed.length; idx++){
+                var pop = postProcessed[idx];
+                if (pop.action === 'insert' && pop.startInAfter != null && pop.endInAfter != null){
+                    k = afterTokens.slice(pop.startInAfter, pop.endInAfter + 1).map(function(t){ return t.key; }).join('|');
+                    if (!insertMap[k]) insertMap[k] = [];
+                    insertMap[k].push(idx);
+                }
+            }
+
+            var moveCounter = 0;
+            // Find deletes whose keys match an insert's key
+            for (var j = 0; j < postProcessed.length; j++){
+                var dop = postProcessed[j];
+                if (dop.action !== 'delete') continue;
+                if (dop.startInBefore == null || dop.endInBefore == null) continue;
+
+                k = beforeTokens.slice(dop.startInBefore, dop.endInBefore + 1).map(function(t){ return t.key; }).join('|');
+                list = insertMap[k];
+                if (list && list.length){
+                    var insOpIndex = list.shift();
+                    var insOp = postProcessed[insOpIndex];
+
+                    // mark both ops as moves and annotate with original action & moveId
+                    moveCounter++;
+                    dop._origAction = 'delete';
+                    dop.action = 'move';
+                    dop.moveId = moveCounter;
+
+                    insOp._origAction = 'insert';
+                    insOp.action = 'move';
+                    insOp.moveId = moveCounter;
+                }
+            }
+        })();
+
         return postProcessed;
     }
 
@@ -913,6 +958,27 @@ function getKeyForToken(token) {
             });
             return wrap('del', val, opIndex, dataPrefix, className);
         },
+
+        // -------------------------
+        // MOVE handler (new)
+        // Renders moved content (both sides) as a span.diff-move with a data-move-id.
+        // The op._origAction tells us whether to take tokens from beforeTokens (delete side)
+        // or afterTokens (insert side).
+        // -------------------------
+        'move': function(op, beforeTokens, afterTokens, opIndex, dataPrefix, className){
+            var tokens;
+            if (op._origAction === 'delete'){
+                tokens = beforeTokens.slice(op.startInBefore, op.endInBefore + 1);
+            } else {
+                tokens = afterTokens.slice(op.startInAfter, op.endInAfter + 1);
+            }
+            var val = tokens.map(function(token){ return token.string; }).join('');
+            var moveId = op.moveId || opIndex;
+            var cls = 'diff-move' + (className ? ' ' + className : '');
+            var attrs = ' data-move-id="' + moveId + '"';
+            return '<span class="' + cls + '"' + attrs + '>' + val + '</span>';
+        },
+
         'replace': function(){
             return OPS['delete'].apply(null, arguments) + OPS['insert'].apply(null, arguments);
         }
