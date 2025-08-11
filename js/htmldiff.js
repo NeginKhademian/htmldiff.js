@@ -25,18 +25,18 @@
  *   htmldiff('<p>this is some text</p>', '<p>this is some more text</p>', 'diff-class')
  *   == '<p>this is some <ins class="diff-class">more </ins>text</p>'
  */
-(function () {
-    "use strict";
+(function(){
+    'use strict';
 
-    function isEndOfTag(char) {
-        return char === ">";
+    function isEndOfTag(char){
+        return char === '>';
     }
 
-    function isStartOfTag(char) {
-        return char === "<";
+    function isStartOfTag(char){
+        return char === '<';
     }
 
-    function isWhitespace(char) {
+    function isWhitespace(char){
         return /^\s+$/.test(char);
     }
 
@@ -47,20 +47,20 @@
      *
      * @return {boolean|string} False if the token is not a tag, or the tag name otherwise.
      */
-    function isTag(token) {
+    function isTag(token){
         var match = token.match(/^\s*<([^!>][^>]*)>\s*$/);
-        return !!match && match[1].trim().split(" ")[0];
+        return !!match && match[1].trim().split(' ')[0];
     }
 
-    function isntTag(token) {
+    function isntTag(token){
         return !isTag(token);
     }
 
-    function isStartofHTMLComment(word) {
+    function isStartofHTMLComment(word){
         return /^<!--/.test(word);
     }
 
-    function isEndOfHTMLComment(word) {
+    function isEndOfHTMLComment(word){
         return /--\>$/.test(word);
     }
 
@@ -70,10 +70,8 @@
      */
     var atomicTagsRegExp;
     // Added head and style (for style tags inside the body)
-    var defaultAtomicTagsRegExp = new RegExp(
-        "^<(iframe|object|math|svg|script|video|head|style|a)\b"
-    );
-
+    var defaultAtomicTagsRegExp = new RegExp('^<(iframe|object|math|svg|script|video|head|style|a)\b');
+    
     /**
      * Checks if the current word is the beginning of an atomic tag. An atomic tag is one whose
      * child nodes should not be compared - the entire tag should be treated as one token. This
@@ -84,7 +82,7 @@
      * @return {string|null} The name of the atomic tag if the word will be an atomic tag,
      *    null otherwise
      */
-    function isStartOfAtomicTag(word) {
+    function isStartOfAtomicTag(word){
         var result = atomicTagsRegExp.exec(word);
         return result && result[1];
     }
@@ -99,8 +97,8 @@
      * @return {boolean} True if the word is now a complete token (including the end tag),
      *    false otherwise.
      */
-    function isEndOfAtomicTag(word, tag) {
-        return word.substring(word.length - tag.length - 2) === "</" + tag;
+    function isEndOfAtomicTag(word, tag){
+        return word.substring(word.length - tag.length - 2) === ('</' + tag);
     }
 
     /**
@@ -110,7 +108,7 @@
      *
      * @return {boolean} True if the token is a void tag, false otherwise.
      */
-    function isVoidTag(token) {
+    function isVoidTag(token){
         return /^\s*<[^>]+\/>\s*$/.test(token);
     }
 
@@ -121,17 +119,12 @@
      *
      * @return {boolean} True if the token can be wrapped inside a tag, false otherwise.
      */
-    function isWrappable(token) {
-        var is_img = /^<img[\s>]/i.test(token);
-        // allow any tag to be wrappable so tag changes can be wrapped
-        return (
-            is_img ||
-            isTag(token) ||
-            isntTag(token) ||
-            isStartOfAtomicTag(token) ||
-            isVoidTag(token)
-        );
-    }
+function isWrappable(token){
+    var is_img = /^<img[\s>]/i.test(token);
+    // We now allow *any* HTML tag to be wrapped so tag changes are visible
+    return is_img || isTag(token) || isntTag(token) || isStartOfAtomicTag(token) || isVoidTag(token);
+}
+
 
     /**
      * Creates a token that holds a string and key representation. The key is used for diffing
@@ -141,10 +134,10 @@
      *
      * @return {Object} A token object with a string and key property.
      */
-    function createToken(currentWord) {
+    function createToken(currentWord){
         return {
             string: currentWord,
-            key: getKeyForToken(currentWord),
+            key: getKeyForToken(currentWord)
         };
     }
 
@@ -157,7 +150,7 @@
      * @param {number} length The number of consecutive matching tokens in this block.
      * @param {Segment} segment The segment where the match was found.
      */
-    function Match(startInBefore, startInAfter, length, segment) {
+    function Match(startInBefore, startInAfter, length, segment){
         this.segment = segment;
         this.length = length;
 
@@ -168,8 +161,8 @@
 
         this.segmentStartInBefore = startInBefore;
         this.segmentStartInAfter = startInAfter;
-        this.segmentEndInBefore = this.segmentStartInBefore + this.length - 1;
-        this.segmentEndInAfter = this.segmentStartInAfter + this.length - 1;
+        this.segmentEndInBefore = (this.segmentStartInBefore + this.length) - 1;
+        this.segmentEndInAfter = (this.segmentStartInAfter + this.length) - 1;
     }
 
     /**
@@ -179,105 +172,102 @@
      *
      * @return {Array.<string>} The list of tokens.
      */
-    function htmlToTokens(html) {
-        var mode = "char";
-        var currentWord = "";
-        var currentAtomicTag = "";
+    function htmlToTokens(html){
+        var mode = 'char';
+        var currentWord = '';
+        var currentAtomicTag = '';
         var words = [];
-        for (var i = 0; i < html.length; i++) {
+        for (var i = 0; i < html.length; i++){
             var char = html[i];
-            switch (mode) {
-                case "tag":
+            switch (mode){
+                case 'tag':
                     var atomicTag = isStartOfAtomicTag(currentWord);
-                    if (atomicTag) {
-                        mode = "atomic_tag";
+                    if (atomicTag){
+                        mode = 'atomic_tag';
                         currentAtomicTag = atomicTag;
                         currentWord += char;
-                    } else if (isStartofHTMLComment(currentWord)) {
-                        mode = "html_comment";
+                    } else if (isStartofHTMLComment(currentWord)){
+                        mode = 'html_comment';
                         currentWord += char;
-                    } else if (isEndOfTag(char)) {
-                        currentWord += ">";
+                    } else if (isEndOfTag(char)){
+                        currentWord += '>';
                         words.push(createToken(currentWord));
-                        currentWord = "";
-                        if (isWhitespace(char)) {
-                            mode = "whitespace";
+                        currentWord = '';
+                        if (isWhitespace(char)){
+                            mode = 'whitespace';
                         } else {
-                            mode = "char";
+                            mode = 'char';
                         }
                     } else {
                         currentWord += char;
                     }
                     break;
-                case "atomic_tag":
-                    if (
-                        isEndOfTag(char) &&
-                        isEndOfAtomicTag(currentWord, currentAtomicTag)
-                    ) {
-                        currentWord += ">";
+                case 'atomic_tag':
+                    if (isEndOfTag(char) && isEndOfAtomicTag(currentWord, currentAtomicTag)){
+                        currentWord += '>';
                         words.push(createToken(currentWord));
-                        currentWord = "";
-                        currentAtomicTag = "";
-                        mode = "char";
+                        currentWord = '';
+                        currentAtomicTag = '';
+                        mode = 'char';
                     } else {
                         currentWord += char;
                     }
                     break;
-                case "html_comment":
+                case 'html_comment':
                     currentWord += char;
-                    if (isEndOfHTMLComment(currentWord)) {
-                        currentWord = "";
-                        mode = "char";
+                    if (isEndOfHTMLComment(currentWord)){
+                        currentWord = '';
+                        mode = 'char';
                     }
                     break;
-                case "char":
-                    if (isStartOfTag(char)) {
-                        if (currentWord) {
+                case 'char':
+                    if (isStartOfTag(char)){
+                        if (currentWord){
                             words.push(createToken(currentWord));
                         }
-                        currentWord = "<";
-                        mode = "tag";
-                    } else if (/\s/.test(char)) {
-                        if (currentWord) {
+                        currentWord = '<';
+                        mode = 'tag';
+                    } else if (/\s/.test(char)){
+                        if (currentWord){
                             words.push(createToken(currentWord));
                         }
                         currentWord = char;
-                        mode = "whitespace";
-                    } else if (/[\w\d\#@]/.test(char)) {
+                        mode = 'whitespace';
+                    } else if (/[\w\d\#@]/.test(char)){
                         currentWord += char;
-                    } else if (/&/.test(char)) {
-                        if (currentWord) {
+                    } else if (/&/.test(char)){
+                        if (currentWord){
                             words.push(createToken(currentWord));
                         }
                         currentWord = char;
                     } else {
                         currentWord += char;
                         words.push(createToken(currentWord));
-                        currentWord = "";
+                        currentWord = '';
                     }
                     break;
-                case "whitespace":
-                    if (isStartOfTag(char)) {
-                        if (currentWord) {
+                case 'whitespace':
+                    if (isStartOfTag(char)){
+                        if (currentWord){
                             words.push(createToken(currentWord));
                         }
-                        currentWord = "<";
-                        mode = "tag";
-                    } else if (isWhitespace(char)) {
+                        currentWord = '<';
+                        mode = 'tag';
+                    } else if (isWhitespace(char)){
                         currentWord += char;
                     } else {
-                        if (currentWord) {
+                        if (currentWord){
                             words.push(createToken(currentWord));
                         }
                         currentWord = char;
-                        mode = "char";
+                        mode = 'char';
                     }
                     break;
                 default:
-                    throw new Error("Unknown mode " + mode);
+                    throw new Error('Unknown mode ' + mode);
             }
         }
-        if (currentWord) {
+        if (currentWord){
             words.push(createToken(currentWord));
         }
         return words;
@@ -293,57 +283,58 @@
      *
      * @return {string} The identifying key that should be used to match before and after tokens.
      */
+    
+  function normalizeZWNJ(str) {
+    // Convert both forms to the literal Unicode character
+    return str
+        .replace(/&zwnj;/gi, '\u200C')  // entity → literal
+        .replace(/\u200C/g, '\u200C');  // keep literal as-is
+}
 
-    function normalizeZWNJ(str) {
-        // Convert both forms to the literal Unicode character
-        return str
-            .replace(/&zwnj;/gi, "\u200C") // entity → literal
-            .replace(/\u200C/g, "\u200C"); // keep literal as-is
+function getKeyForToken(token) {
+    // --- ZWNJ normalization ---
+    token = normalizeZWNJ(token);
+
+    // Image keys
+    var img = /^<img[^>]*src=['"]([^"']*)['"][^>]*>$/i.exec(token);
+    if (img) return '<img src="' + img[1] + '">';
+
+    // Anchor keys
+    var a = /^<a[^>]*href=['"]([^"']*)['"][^>]*>/i.exec(token);
+    if (a) return '<a href="' + a[1] + '"></a>';
+
+    // Object keys
+    var object = /^<object[^>]*data=['"]([^"']*)['"][^>]*>/i.exec(token);
+    if (object) return '<object src="' + object[1] + '"></object>';
+
+    // Media keys
+    if (/^<(svg|math|video)[\s>]/i.test(token)) {
+        var uuid = token.indexOf('data-uuid="');
+        if (uuid !== -1) {
+            var start = token.slice(0, uuid);
+            var end = token.slice(uuid + 44);
+            return start + end;
+        }
+        return token.trim();
     }
 
-    function getKeyForToken(token) {
-        // --- ZWNJ normalization ---
-        token = normalizeZWNJ(token);
+    // Iframe keys
+    var iframe = /^<iframe[^>]*src=['"]([^"']*)['"][^>]*>/i.exec(token);
+    if (iframe) return '<iframe src="' + iframe[1] + '"></iframe>';
 
-        // Image keys
-        var img = /^<img[^>]*src=['"]([^"']*)['"][^>]*>$/i.exec(token);
-        if (img) return '<img src="' + img[1] + '">';
-
-        // Anchor keys
-        var a = /^<a[^>]*href=['"]([^"']*)['"][^>]*>/i.exec(token);
-        if (a) return '<a href="' + a[1] + '"></a>';
-
-        // Object keys
-        var object = /^<object[^>]*data=['"]([^"']*)['"][^>]*>/i.exec(token);
-        if (object) return '<object src="' + object[1] + '"></object>';
-
-        // Media keys
-        if (/^<(svg|math|video)[\s>]/i.test(token)) {
-            var uuid = token.indexOf('data-uuid="');
-            if (uuid !== -1) {
-                var start = token.slice(0, uuid);
-                var end = token.slice(uuid + 44);
-                return start + end;
-            }
-            return token.trim();
-        }
-
-        // Iframe keys
-        var iframe = /^<iframe[^>]*src=['"]([^"']*)['"][^>]*>/i.exec(token);
-        if (iframe) return '<iframe src="' + iframe[1] + '"></iframe>';
-
-        // Other tags: keep full tag
-        if (/^<[^>]+>$/.test(token.trim())) {
-            return token.trim();
-        }
-
-        // Text node: normalize spaces (preserve ZWNJ)
-        if (token) {
-            return token.replace(/(\s+|&nbsp;|&#160;)/g, " ");
-        }
-
-        return token;
+    // Other tags: keep full tag
+    if (/^<[^>]+>$/.test(token.trim())) {
+        return token.trim();
     }
+
+    // Text node: normalize spaces (preserve ZWNJ)
+    if (token) {
+        return token.replace(/(\s+|&nbsp;|&#160;)/g, ' ');
+    }
+
+    return token;
+}
+
 
     /**
      * Creates a map from token key to an array of indices of locations of the matching token in
@@ -353,9 +344,9 @@
      *
      * @return {Object} A mapping that can be used to search for tokens.
      */
-    function createMap(tokens) {
-        return tokens.reduce(function (map, token, index) {
-            if (map[token.key]) {
+    function createMap(tokens){
+        return tokens.reduce(function(map, token, index){
+            if (map[token.key]){
                 map[token.key].push(index);
             } else {
                 map[token.key] = [index];
@@ -375,13 +366,10 @@
      * @return {number} Returns -1 if the m2 should come before m1. Returns 1 if m1 should come
      *    before m2. If the two matches criss-cross each other, 0 is returned.
      */
-    function compareMatches(m1, m2) {
-        if (m2.endInBefore < m1.startInBefore && m2.endInAfter < m1.startInAfter) {
+    function compareMatches(m1, m2){
+        if (m2.endInBefore < m1.startInBefore && m2.endInAfter < m1.startInAfter){
             return -1;
-        } else if (
-            m2.startInBefore > m1.endInBefore &&
-            m2.startInAfter > m1.endInAfter
-        ) {
+        } else if (m2.startInBefore > m1.endInBefore && m2.startInAfter > m1.endInAfter){
             return 1;
         } else {
             return 0;
@@ -394,7 +382,7 @@
      *
      * @constructor
      */
-    function MatchBinarySearchTree() {
+    function MatchBinarySearchTree(){
         this._root = null;
     }
 
@@ -404,31 +392,31 @@
          *
          * @param {Match} value The match to add to the binary search tree.
          */
-        add: function (value) {
+        add: function (value){
             // Create the node to hold the match value.
             var node = {
                 value: value,
                 left: null,
-                right: null,
+                right: null
             };
 
             var current = this._root;
-            if (current) {
-                while (true) {
+            if(current){
+                while (true){
                     // Determine if the match value should go to the left or right of the current
                     // node.
                     var position = compareMatches(current.value, value);
-                    if (position === -1) {
+                    if (position === -1){
                         // The position of the match is to the left of this node.
-                        if (current.left) {
+                        if (current.left){
                             current = current.left;
                         } else {
                             current.left = node;
                             break;
                         }
-                    } else if (position === 1) {
+                    } else if (position === 1){
                         // The position of the match is to the right of this node.
-                        if (current.right) {
+                        if (current.right){
                             current = current.right;
                         } else {
                             current.right = node;
@@ -451,9 +439,9 @@
          *
          * @return {Array.<Match>} An array containing the matches in the binary search tree.
          */
-        toArray: function () {
-            function inOrder(node, nodes) {
-                if (node) {
+        toArray: function(){
+            function inOrder(node, nodes){
+                if (node){
                     inOrder(node.left, nodes);
                     nodes.push(node.value);
                     inOrder(node.right, nodes);
@@ -462,8 +450,9 @@
             }
 
             return inOrder(this._root, []);
-        },
+        }
     };
+
 
     /**
      * Finds and returns the best match between the before and after arrays contained in the segment
@@ -473,24 +462,20 @@
      *
      * @return {Match} The best match.
      */
-    function findBestMatch(segment) {
+    function findBestMatch(segment){
         var beforeTokens = segment.beforeTokens;
         var afterMap = segment.afterMap;
         var lastSpace = null;
         var bestMatch = null;
 
         // Iterate through the entirety of the beforeTokens to find the best match.
-        for (
-            var beforeIndex = 0;
-            beforeIndex < beforeTokens.length;
-            beforeIndex++
-        ) {
+        for (var beforeIndex = 0; beforeIndex < beforeTokens.length; beforeIndex++){
             var lookBehind = false;
 
             // If the current best match is longer than the remaining tokens, we can bail because we
             // won't find a better match.
             var remainingTokens = beforeTokens.length - beforeIndex;
-            if (bestMatch && remainingTokens < bestMatch.length) {
+            if (bestMatch && remainingTokens < bestMatch.length){
                 break;
             }
 
@@ -499,40 +484,35 @@
             // documents. Instead, if the next token yields a match, we'll see if the whitespace can
             // be included in that match.
             var beforeToken = beforeTokens[beforeIndex];
-            if (beforeToken.key === " ") {
+            if (beforeToken.key === ' '){
                 lastSpace = beforeIndex;
                 continue;
             }
 
             // Check to see if we just skipped a space, if so, we'll ask getFullMatch to look behind
             // by one token to see if it can include the whitespace.
-            if (lastSpace === beforeIndex - 1) {
+            if (lastSpace === beforeIndex - 1){
                 lookBehind = true;
             }
 
             // If the current token is not found in the afterTokens, it won't match and we can move
             // on.
             var afterTokenLocations = afterMap[beforeToken.key];
-            if (!afterTokenLocations) {
+            if(!afterTokenLocations){
                 continue;
             }
 
             // For each instance of the current token in afterTokens, let's see how big of a match
             // we can build.
-            afterTokenLocations.forEach(function (afterIndex) {
+            afterTokenLocations.forEach(function(afterIndex){
                 // getFullMatch will see how far the current token match will go in both
                 // beforeTokens and afterTokens.
                 var bestMatchLength = bestMatch ? bestMatch.length : 0;
                 var match = getFullMatch(
-                    segment,
-                    beforeIndex,
-                    afterIndex,
-                    bestMatchLength,
-                    lookBehind
-                );
+                        segment, beforeIndex, afterIndex, bestMatchLength, lookBehind);
 
                 // If we got a new best match, we'll save it aside.
-                if (match && match.length > bestMatchLength) {
+                if (match && match.length > bestMatchLength){
                     bestMatch = match;
                 }
             });
@@ -554,33 +534,24 @@
      *
      * @return {Match} The full match.
      */
-    function getFullMatch(
-        segment,
-        beforeStart,
-        afterStart,
-        minLength,
-        lookBehind
-    ) {
+    function getFullMatch(segment, beforeStart, afterStart, minLength, lookBehind){
         var beforeTokens = segment.beforeTokens;
         var afterTokens = segment.afterTokens;
 
         // If we already have a match that goes to the end of the document, no need to keep looking.
         var minBeforeIndex = beforeStart + minLength;
         var minAfterIndex = afterStart + minLength;
-        if (
-            minBeforeIndex >= beforeTokens.length ||
-            minAfterIndex >= afterTokens.length
-        ) {
+        if(minBeforeIndex >= beforeTokens.length || minAfterIndex >= afterTokens.length){
             return;
         }
 
         // If a minLength was provided, we can do a quick check to see if the tokens after that
         // length match. If not, we won't be beating the previous best match, and we can bail out
         // early.
-        if (minLength) {
+        if (minLength){
             var nextBeforeWord = beforeTokens[minBeforeIndex].key;
             var nextAfterWord = afterTokens[minAfterIndex].key;
-            if (nextBeforeWord !== nextAfterWord) {
+            if (nextBeforeWord !== nextAfterWord){
                 return;
             }
         }
@@ -592,14 +563,10 @@
         var beforeIndex = beforeStart + currentLength;
         var afterIndex = afterStart + currentLength;
 
-        while (
-            searching &&
-            beforeIndex < beforeTokens.length &&
-            afterIndex < afterTokens.length
-        ) {
+        while (searching && beforeIndex < beforeTokens.length && afterIndex < afterTokens.length){
             var beforeWord = beforeTokens[beforeIndex].key;
             var afterWord = afterTokens[afterIndex].key;
-            if (beforeWord === afterWord) {
+            if (beforeWord === afterWord){
                 currentLength++;
                 beforeIndex = beforeStart + currentLength;
                 afterIndex = afterStart + currentLength;
@@ -611,10 +578,10 @@
         // If we've been asked to look behind, it's because both beforeTokens and afterTokens may
         // have a whitespace token just behind the current match that was previously ignored. If so,
         // we'll expand the current match to include it.
-        if (lookBehind && beforeStart > 0 && afterStart > 0) {
+        if (lookBehind && beforeStart > 0 && afterStart > 0){
             var prevBeforeKey = beforeTokens[beforeStart - 1].key;
             var prevAfterKey = afterTokens[afterStart - 1].key;
-            if (prevBeforeKey === " " && prevAfterKey === " ") {
+            if (prevBeforeKey === ' ' && prevAfterKey === ' '){
                 beforeStart--;
                 afterStart--;
                 currentLength++;
@@ -635,14 +602,14 @@
      *
      * @return {Segment} The segment object.
      */
-    function createSegment(beforeTokens, afterTokens, beforeIndex, afterIndex) {
+    function createSegment(beforeTokens, afterTokens, beforeIndex, afterIndex){
         return {
             beforeTokens: beforeTokens,
             afterTokens: afterTokens,
             beforeMap: createMap(beforeTokens),
             afterMap: createMap(afterTokens),
             beforeIndex: beforeIndex,
-            afterIndex: afterIndex,
+            afterIndex: afterIndex
         };
     }
 
@@ -654,7 +621,7 @@
      *
      * @return {Array.<Match>} The list of matching blocks in this range.
      */
-    function findMatchingBlocks(segment) {
+    function findMatchingBlocks(segment){
         // Create a binary search tree to hold the matches we find in order.
         var matches = new MatchBinarySearchTree();
         var match;
@@ -663,54 +630,32 @@
         // Each time the best match is found in a segment, zero, one or two new segments may be
         // created from the parts of the original segment not included in the match. We will
         // continue to iterate until all segments have been processed.
-        while (segments.length) {
+        while(segments.length){
             segment = segments.pop();
             match = findBestMatch(segment);
 
-            if (match && match.length) {
+            if (match && match.length){
                 // If there's an unmatched area at the start of the segment, create a new segment
                 // from that area and throw it into the segments array to get processed.
-                if (match.segmentStartInBefore > 0 && match.segmentStartInAfter > 0) {
+                if (match.segmentStartInBefore > 0 && match.segmentStartInAfter > 0){
                     var leftBeforeTokens = segment.beforeTokens.slice(
-                        0,
-                        match.segmentStartInBefore
-                    );
-                    var leftAfterTokens = segment.afterTokens.slice(
-                        0,
-                        match.segmentStartInAfter
-                    );
+                            0, match.segmentStartInBefore);
+                    var leftAfterTokens = segment.afterTokens.slice(0, match.segmentStartInAfter);
 
-                    segments.push(
-                        createSegment(
-                            leftBeforeTokens,
-                            leftAfterTokens,
-                            segment.beforeIndex,
-                            segment.afterIndex
-                        )
-                    );
+                    segments.push(createSegment(leftBeforeTokens, leftAfterTokens,
+                            segment.beforeIndex, segment.afterIndex));
                 }
 
                 // If there's an unmatched area at the end of the segment, create a new segment from that
                 // area and throw it into the segments array to get processed.
-                var rightBeforeTokens = segment.beforeTokens.slice(
-                    match.segmentEndInBefore + 1
-                );
-                var rightAfterTokens = segment.afterTokens.slice(
-                    match.segmentEndInAfter + 1
-                );
-                var rightBeforeIndex =
-                    segment.beforeIndex + match.segmentEndInBefore + 1;
+                var rightBeforeTokens = segment.beforeTokens.slice(match.segmentEndInBefore + 1);
+                var rightAfterTokens = segment.afterTokens.slice(match.segmentEndInAfter + 1);
+                var rightBeforeIndex = segment.beforeIndex + match.segmentEndInBefore + 1;
                 var rightAfterIndex = segment.afterIndex + match.segmentEndInAfter + 1;
 
-                if (rightBeforeTokens.length && rightAfterTokens.length) {
-                    segments.push(
-                        createSegment(
-                            rightBeforeTokens,
-                            rightAfterTokens,
-                            rightBeforeIndex,
-                            rightAfterIndex
-                        )
-                    );
+                if (rightBeforeTokens.length && rightAfterTokens.length){
+                    segments.push(createSegment(rightBeforeTokens, rightAfterTokens,
+                            rightBeforeIndex, rightAfterIndex));
                 }
 
                 matches.add(match);
@@ -718,52 +663,6 @@
         }
 
         return matches.toArray();
-    }
-    function isFullTagString(s) {
-        return /^\s*<[^>]+>\s*$/.test(s);
-    }
-    function isFullTagKey(k) {
-        return /^<[^>]+>$/.test(k);
-    }
-
-    /**
-     * Build a key for tokens[start..end] that ignores full/outer tags.
-     * This is used to match inserted/deleted *textual* sequences regardless of their container tags.
-     */
-    function tokensTextKey(tokens, start, end) {
-        return tokens
-            .slice(start, end + 1)
-            .map(function (t) {
-                return isFullTagKey(t.key) ? "" : t.key;
-            })
-            .filter(Boolean)
-            .join("|");
-    }
-
-    /**
-     * Remove matching outermost tag pairs from tokens array.
-     * E.g. [ '<p>', '<b>', 'x', '</b>', '</p>' ] => [ '<b>', 'x', '</b>' ]
-     */
-    function stripOuterTags(tokens) {
-        var t = tokens.slice(); // copy
-        while (t.length >= 2) {
-            var first = (t[0].string || "").trim();
-            var last = (t[t.length - 1].string || "").trim();
-
-            var mOpen = first.match(/^<\s*([a-z0-9:-]+)(?:\s|>)/i);
-            var mClose = last.match(/^<\s*\/\s*([a-z0-9:-]+)\s*>/i);
-
-            if (
-                mOpen &&
-                mClose &&
-                mOpen[1].toLowerCase() === mClose[1].toLowerCase()
-            ) {
-                t = t.slice(1, -1);
-            } else {
-                break;
-            }
-        }
-        return t;
     }
 
     /**
@@ -783,54 +682,48 @@
      *      - {number} startInAfter The beginning of the range in the list of after tokens.
      *      - {number} endInAfter The end of the range in the list of after tokens.
      */
-    function calculateOperations(beforeTokens, afterTokens) {
-        if (!beforeTokens) throw new Error("Missing beforeTokens");
-        if (!afterTokens) throw new Error("Missing afterTokens");
+    function calculateOperations(beforeTokens, afterTokens){
+        if (!beforeTokens) throw new Error('Missing beforeTokens');
+        if (!afterTokens) throw new Error('Missing afterTokens');
 
         var positionInBefore = 0;
         var positionInAfter = 0;
         var operations = [];
         var segment = createSegment(beforeTokens, afterTokens, 0, 0);
         var matches = findMatchingBlocks(segment);
-        matches.push(
-            new Match(beforeTokens.length, afterTokens.length, 0, segment)
-        );
+        matches.push(new Match(beforeTokens.length, afterTokens.length, 0, segment));
 
-        for (var index = 0; index < matches.length; index++) {
+        for (var index = 0; index < matches.length; index++){
             var match = matches[index];
-            var actionUpToMatchPositions = "none";
-            if (positionInBefore === match.startInBefore) {
-                if (positionInAfter !== match.startInAfter) {
-                    actionUpToMatchPositions = "insert";
+            var actionUpToMatchPositions = 'none';
+            if (positionInBefore === match.startInBefore){
+                if (positionInAfter !== match.startInAfter){
+                    actionUpToMatchPositions = 'insert';
                 }
             } else {
-                actionUpToMatchPositions = "delete";
-                if (positionInAfter !== match.startInAfter) {
-                    actionUpToMatchPositions = "replace";
+                actionUpToMatchPositions = 'delete';
+                if (positionInAfter !== match.startInAfter){
+                    actionUpToMatchPositions = 'replace';
                 }
             }
-            if (actionUpToMatchPositions !== "none") {
+            if (actionUpToMatchPositions !== 'none'){
                 operations.push({
                     action: actionUpToMatchPositions,
                     startInBefore: positionInBefore,
-                    endInBefore:
-                        actionUpToMatchPositions !== "insert"
-                            ? match.startInBefore - 1
-                            : null,
+                    endInBefore: (actionUpToMatchPositions !== 'insert' ?
+                            match.startInBefore - 1 : null),
                     startInAfter: positionInAfter,
-                    endInAfter:
-                        actionUpToMatchPositions !== "delete"
-                            ? match.startInAfter - 1
-                            : null,
+                    endInAfter: (actionUpToMatchPositions !== 'delete' ?
+                            match.startInAfter - 1 : null)
                 });
             }
-            if (match.length !== 0) {
+            if (match.length !== 0){
                 operations.push({
-                    action: "equal",
+                    action: 'equal',
                     startInBefore: match.startInBefore,
                     endInBefore: match.endInBefore,
                     startInAfter: match.startInAfter,
-                    endInAfter: match.endInAfter,
+                    endInAfter: match.endInAfter
                 });
             }
             positionInBefore = match.endInBefore + 1;
@@ -838,27 +731,23 @@
         }
 
         var postProcessed = [];
-        var lastOp = { action: "none" };
+        var lastOp = {action: 'none'};
 
-        function isSingleWhitespace(op) {
-            if (op.action !== "equal") {
+        function isSingleWhitespace(op){
+            if (op.action !== 'equal'){
                 return false;
             }
-            if (op.endInBefore - op.startInBefore !== 0) {
+            if (op.endInBefore - op.startInBefore !== 0){
                 return false;
             }
-            return /^\s$/.test(
-                beforeTokens.slice(op.startInBefore, op.endInBefore + 1)
-            );
+            return /^\s$/.test(beforeTokens.slice(op.startInBefore, op.endInBefore + 1));
         }
 
-        for (var i = 0; i < operations.length; i++) {
+        for (var i = 0; i < operations.length; i++){
             var op = operations[i];
 
-            if (
-                (isSingleWhitespace(op) && lastOp.action === "replace") ||
-                (op.action === "replace" && lastOp.action === "replace")
-            ) {
+            if ((isSingleWhitespace(op) && lastOp.action === 'replace') ||
+                    (op.action === 'replace' && lastOp.action === 'replace')){
                 lastOp.endInBefore = op.endInBefore;
                 lastOp.endInAfter = op.endInAfter;
             } else {
@@ -866,61 +755,6 @@
                 lastOp = op;
             }
         }
-
-        // -------------------------
-        // MOVE DETECTION (new)
-        // -------------------------
-        // Convert exact matching delete+insert pairs into 'move' ops (annotated with moveId).
-        // This marks content that was removed from one place and inserted elsewhere as "moved".
-        (function detectMoves() {
-            var insertMap = Object.create(null);
-            var k, list;
-
-            // Build map of insert op keys -> op indices
-            for (var idx = 0; idx < postProcessed.length; idx++) {
-                var pop = postProcessed[idx];
-                if (
-                    pop.action === "insert" &&
-                    pop.startInAfter != null &&
-                    pop.endInAfter != null
-                ) {
-                    k = tokensTextKey(beforeTokens, dop.startInBefore, dop.endInBefore);
-                    if (!insertMap[k]) insertMap[k] = [];
-                    insertMap[k].push(idx);
-                }
-            }
-
-            var moveCounter = 0;
-            // Find deletes whose keys match an insert's key
-            for (var j = 0; j < postProcessed.length; j++) {
-                var dop = postProcessed[j];
-                if (dop.action !== "delete") continue;
-                if (dop.startInBefore == null || dop.endInBefore == null) continue;
-
-                k = beforeTokens
-                    .slice(dop.startInBefore, dop.endInBefore + 1)
-                    .map(function (t) {
-                        return t.key;
-                    })
-                    .join("|");
-                list = insertMap[k];
-                if (list && list.length) {
-                    var insOpIndex = list.shift();
-                    var insOp = postProcessed[insOpIndex];
-
-                    // mark both ops as moves and annotate with original action & moveId
-                    moveCounter++;
-                    dop._origAction = "delete";
-                    dop.action = "move";
-                    dop.moveId = moveCounter;
-
-                    insOp._origAction = "insert";
-                    insOp.action = "move";
-                    insOp.moveId = moveCounter;
-                }
-            }
-        })();
-
         return postProcessed;
     }
 
@@ -938,32 +772,29 @@
      * TokenWrapper has a method 'combine' which allows walking over the segments to wrap them in
      * tags.
      */
-    function TokenWrapper(tokens) {
+    function TokenWrapper(tokens){
         this.tokens = tokens;
-        this.notes = tokens.reduce(
-            function (data, token, index) {
-                data.notes.push({
-                    isWrappable: isWrappable(token),
-                    insertedTag: false,
-                });
+        this.notes = tokens.reduce(function(data, token, index){
+            data.notes.push({
+                isWrappable: isWrappable(token),
+                insertedTag: false
+            });
 
-                var tag = !isVoidTag(token) && isTag(token);
-                var lastEntry = data.tagStack[data.tagStack.length - 1];
-                if (tag) {
-                    if (lastEntry && "/" + lastEntry.tag === tag) {
-                        data.notes[lastEntry.position].insertedTag = true;
-                        data.tagStack.pop();
-                    } else {
-                        data.tagStack.push({
-                            tag: tag,
-                            position: index,
-                        });
-                    }
+            var tag = !isVoidTag(token) && isTag(token);
+            var lastEntry = data.tagStack[data.tagStack.length - 1];
+            if (tag){
+                if (lastEntry && '/' + lastEntry.tag === tag){
+                    data.notes[lastEntry.position].insertedTag = true;
+                    data.tagStack.pop();
+                } else {
+                    data.tagStack.push({
+                        tag: tag,
+                        position: index
+                    });
                 }
-                return data;
-            },
-            { notes: [], tagStack: [] }
-        ).notes;
+            }
+            return data;
+        }, {notes: [], tagStack: []}).notes;
     }
 
     /**
@@ -975,38 +806,35 @@
      * @param {function(boolean, Array.<string>)} mapFn A function called with an array of tokens
      *      and whether those tokens are wrappable or not. The result should be a string.
      */
-    TokenWrapper.prototype.combine = function (mapFn, tagFn) {
+    TokenWrapper.prototype.combine = function(mapFn, tagFn){
         var notes = this.notes;
         var tokens = this.tokens.slice();
-        var segments = tokens.reduce(
-            function (data, token, index) {
-                if (notes[index].insertedTag) {
-                    tokens[index] = tagFn(tokens[index]);
-                }
-                if (data.status === null) {
-                    data.status = notes[index].isWrappable;
-                }
-                var status = notes[index].isWrappable;
-                if (status !== data.status) {
-                    data.list.push({
-                        isWrappable: data.status,
-                        tokens: tokens.slice(data.lastIndex, index),
-                    });
-                    data.lastIndex = index;
-                    data.status = status;
-                }
-                if (index === tokens.length - 1) {
-                    data.list.push({
-                        isWrappable: data.status,
-                        tokens: tokens.slice(data.lastIndex, index + 1),
-                    });
-                }
-                return data;
-            },
-            { list: [], status: null, lastIndex: 0 }
-        ).list;
+        var segments = tokens.reduce(function(data, token, index){
+            if (notes[index].insertedTag){
+                tokens[index] = tagFn(tokens[index]);
+            }
+            if (data.status === null){
+                data.status = notes[index].isWrappable;
+            }
+            var status = notes[index].isWrappable;
+            if (status !== data.status){
+                data.list.push({
+                    isWrappable: data.status,
+                    tokens: tokens.slice(data.lastIndex, index)
+                });
+                data.lastIndex = index;
+                data.status = status;
+            }
+            if (index === tokens.length - 1){
+                data.list.push({
+                    isWrappable: data.status,
+                    tokens: tokens.slice(data.lastIndex, index + 1)
+                });
+            }
+            return data;
+        }, {list: [], status: null, lastIndex: 0}).list;
 
-        return segments.map(mapFn).join("");
+        return segments.map(mapFn).join('');
     };
 
     /**
@@ -1018,34 +846,30 @@
      * @param {string} dataPrefix (Optional) The prefix to use in data attributes.
      * @param {string} className (Optional) The class name to include in the wrapper tag.
      */
-    function wrap(tag, content, opIndex, dataPrefix, className) {
+    function wrap(tag, content, opIndex, dataPrefix, className){
         var wrapper = new TokenWrapper(content);
-        dataPrefix = dataPrefix ? dataPrefix + "-" : "";
-        var attrs = " data-" + dataPrefix + 'operation-index="' + opIndex + '"';
-        if (className) {
+        dataPrefix = dataPrefix ? dataPrefix + '-' : '';
+        var attrs = ' data-' + dataPrefix + 'operation-index="' + opIndex + '"';
+        if (className){
             attrs += ' class="' + className + '"';
         }
 
-        return wrapper.combine(
-            function (segment) {
-                if (segment.isWrappable) {
-                    var val = segment.tokens.join("");
-                    if (val.trim()) {
-                        return "<" + tag + attrs + ">" + val + "</" + tag + ">";
-                    }
-                } else {
-                    return segment.tokens.join("");
+        return wrapper.combine(function(segment){
+            if (segment.isWrappable){
+                var val = segment.tokens.join('');
+                if (val.trim()){
+                    return '<' + tag + attrs + '>' + val + '</' + tag + '>';
                 }
-                return "";
-            },
-            function (openingTag) {
-                var dataAttrs = ' data-diff-node="' + tag + '"';
-                dataAttrs +=
-                    " data-" + dataPrefix + 'operation-index="' + opIndex + '"';
-
-                return openingTag.replace(/>\s*$/, dataAttrs + "$&");
+            } else {
+                return segment.tokens.join('');
             }
-        );
+            return '';
+        }, function(openingTag){
+            var dataAttrs = ' data-diff-node="' + tag + '"';
+            dataAttrs += ' data-' + dataPrefix + 'operation-index="' + opIndex + '"';
+
+            return openingTag.replace(/>\s*$/, dataAttrs + '$&');
+        });
     }
 
     /**
@@ -1069,83 +893,29 @@
      * @return {string} The rendering of that operation.
      */
     var OPS = {
-        equal: function (
-            op,
-            beforeTokens,
-            afterTokens,
-            opIndex,
-            dataPrefix,
-            className
-        ) {
+        'equal': function(op, beforeTokens, afterTokens, opIndex, dataPrefix, className){
             var tokens = afterTokens.slice(op.startInAfter, op.endInAfter + 1);
-            return tokens.reduce(function (prev, curr) {
+            return tokens.reduce(function(prev, curr){
                 return prev + curr.string;
-            }, "");
+            }, '');
         },
-        insert: function (
-            op,
-            beforeTokens,
-            afterTokens,
-            opIndex,
-            dataPrefix,
-            className
-        ) {
+        'insert': function(op, beforeTokens, afterTokens, opIndex, dataPrefix, className){
             var tokens = afterTokens.slice(op.startInAfter, op.endInAfter + 1);
-            var val = tokens.map(function (token) {
+            var val = tokens.map(function(token){
                 return token.string;
             });
-            return wrap("ins", val, opIndex, dataPrefix, className);
+            return wrap('ins', val, opIndex, dataPrefix, className);
         },
-        delete: function (
-            op,
-            beforeTokens,
-            afterTokens,
-            opIndex,
-            dataPrefix,
-            className
-        ) {
+        'delete': function(op, beforeTokens, afterTokens, opIndex, dataPrefix, className){
             var tokens = beforeTokens.slice(op.startInBefore, op.endInBefore + 1);
-            var val = tokens.map(function (token) {
+            var val = tokens.map(function(token){
                 return token.string;
             });
-            return wrap("del", val, opIndex, dataPrefix, className);
+            return wrap('del', val, opIndex, dataPrefix, className);
         },
-
-        // -------------------------
-        // MOVE handler (new)
-        // Renders moved content (both sides) as a span.diff-move with a data-move-id.
-        // The op._origAction tells us whether to take tokens from beforeTokens (delete side)
-        // or afterTokens (insert side).
-        // -------------------------
-        move: function (
-            op,
-            beforeTokens,
-            afterTokens,
-            opIndex,
-            dataPrefix,
-            className
-        ) {
-            var tokens;
-            if (op._origAction === "delete") {
-                tokens = beforeTokens.slice(op.startInBefore, op.endInBefore + 1);
-            } else {
-                tokens = afterTokens.slice(op.startInAfter, op.endInAfter + 1);
-            }
-
-            // Strip outermost wrapper tags so the moved content adopts the destination's surrounding markup
-            // but keep inner inline tags (e.g. <b>, <i>) intact.
-            tokens = stripOuterTags(tokens);
-
-            var val = tokens
-                .map(function (token) {
-                    return token.string;
-                })
-                .join("");
-            var moveId = op.moveId || opIndex;
-            var cls = "diff-move" + (className ? " " + className : "");
-            var attrs = ' data-move-id="' + moveId + '"';
-            return '<span class="' + cls + '"' + attrs + ">" + val + "</span>";
-        },
+        'replace': function(){
+            return OPS['delete'].apply(null, arguments) + OPS['insert'].apply(null, arguments);
+        }
     };
 
     /**
@@ -1167,26 +937,11 @@
      *
      * @return {string} The rendering of the list of operations.
      */
-    function renderOperations(
-        beforeTokens,
-        afterTokens,
-        operations,
-        dataPrefix,
-        className
-    ) {
-        return operations.reduce(function (rendering, op, index) {
-            return (
-                rendering +
-                OPS[op.action](
-                    op,
-                    beforeTokens,
-                    afterTokens,
-                    index,
-                    dataPrefix,
-                    className
-                )
-            );
-        }, "");
+    function renderOperations(beforeTokens, afterTokens, operations, dataPrefix, className){
+        return operations.reduce(function(rendering, op, index){
+            return rendering + OPS[op.action](
+                    op, beforeTokens, afterTokens, index, dataPrefix, className);
+        }, '');
     }
 
     /**
@@ -1198,20 +953,18 @@
      * @param {string} className (Optional) The class attribute to include in <ins> and <del> tags.
      * @param {string} dataPrefix (Optional) The data prefix to use for data attributes. The
      *      operation index data attribute will be named `data-${dataPrefix-}operation-index`.
-     * @param {string} atomicTags (Optional) Comma separated list of atomic tag names. The
-     *     list has to be in the form `tag1,tag2,...` e. g. `head,script,style`. If not used,
+     * @param {string} atomicTags (Optional) Comma separated list of atomic tag names. The 
+     *     list has to be in the form `tag1,tag2,...` e. g. `head,script,style`. If not used, 
      *     the default list `iframe,object,math,svg,script,video,head,style` will be used.
      *
      * @return {string} The combined HTML content with differences wrapped in <ins> and <del> tags.
      */
-    function diff(before, after, className, dataPrefix, atomicTags) {
+    function diff(before, after, className, dataPrefix, atomicTags){
         if (before === after) return before;
 
         // Enable user provided atomic tag list.
-        atomicTags
-            ? (atomicTagsRegExp = new RegExp(
-                "^<(" + atomicTags.replace(/\s*/g, "").replace(/,/g, "|") + ")\b"
-            ))
+        atomicTags ? 
+            (atomicTagsRegExp = new RegExp('^<(' + atomicTags.replace(/\s*/g, '').replace(/,/g, '|') + ')\b'))
             : (atomicTagsRegExp = defaultAtomicTagsRegExp);
 
         before = htmlToTokens(before);
@@ -1230,11 +983,11 @@
     diff.calculateOperations = calculateOperations;
     diff.renderOperations = renderOperations;
 
-    if (typeof define === "function") {
-        define([], function () {
-            return diff;
+    if (typeof define === 'function'){
+        define([], function(){
+          return diff;
         });
-    } else if (typeof module !== "undefined" && module !== null) {
+    } else if (typeof module !== 'undefined' && module !== null){
         module.exports = diff;
     } else {
         this.htmldiff = diff;
